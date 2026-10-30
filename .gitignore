@@ -4,3 +4,4 @@ __pycache__/
 weights/
 results/cache/
 results/objects.csv
+results/gpu_run.log

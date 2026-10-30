@@ -1,0 +1,19 @@
+stereo,vs,metric,Z*(z_gt),Z*(z_near)
+bm,D1 GT box,rel_median,54.23412396262582,33.134113811574515
+bm,D1 GT box,mae,53.110948419835694,7.205685140039419
+bm,D2 det box,rel_median,68.19401622864493,38.93585803250952
+bm,D2 det box,mae,72.0199472605519,18.88084740648992
+bm,D4 raw,rel_median,,
+bm,D4 raw,mae,,
+sgbm,D1 GT box,rel_median,52.450812752306,10.305913852371425
+sgbm,D1 GT box,mae,53.604143078505956,6.998672438914383
+sgbm,D2 det box,rel_median,65.36552429038626,35.54865285262133
+sgbm,D2 det box,mae,77.16142102790778,18.44930140239557
+sgbm,D4 raw,rel_median,,
+sgbm,D4 raw,mae,,
+sgbm_wls,D1 GT box,rel_median,52.46394098141644,7.477266880462948
+sgbm_wls,D1 GT box,mae,52.876445174478405,6.941344392191215
+sgbm_wls,D2 det box,rel_median,65.24678462815275,35.51080427561009
+sgbm_wls,D2 det box,mae,74.96460436865162,19.276682885191914
+sgbm_wls,D4 raw,rel_median,,
+sgbm_wls,D4 raw,mae,,

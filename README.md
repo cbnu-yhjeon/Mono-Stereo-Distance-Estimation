@@ -4,7 +4,7 @@
 
 **단안 핀홀 · 스테레오 시차 · 단안 깊이 — 세 가지 거리 추정의 오차 비교**
 
-![Status](https://img.shields.io/badge/Status-Planning-lightgrey?style=flat-square)
+![Status](https://img.shields.io/badge/Status-Done-success?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)
 ![OpenCV](https://img.shields.io/badge/OpenCV-contrib%204.x-5C3EE8?style=flat-square&logo=opencv&logoColor=white)
 ![Dataset](https://img.shields.io/badge/Dataset-KITTI%20Stereo-0F766E?style=flat-square)
@@ -15,7 +15,30 @@
 </div>
 
 > [!NOTE]
-> 🚧 **계획 단계입니다.** 아직 코드가 없고, 이 README는 프로젝트 설계서입니다.
+> ✅ **구현·실험 완료 (2026-10-30).** 아래 결과 요약은 KITTI Object training 홀수 id 3,737 프레임 · 객체 12,783개 기준입니다.
+> 전체 표와 그림은 [`results/REPORT.md`](results/REPORT.md)에 있습니다.
+
+## 🏁 결과 요약
+
+| 질문 | 답 |
+|---|---|
+| 스테레오 시차 알고리즘 | **SGBM**(block 7, 3-way)이 D1-all **7.4%**, EPE 1.44 px로 가장 정확. WLS는 밀도 97%로 빈 곳을 채우지만 D1-all 9.0%로 오히려 나쁨 |
+| 객체 시차 추출 | 비교 기준에 따라 최적이 다름. 박스 중심 깊이 → 박스 전체 **중앙값**, 가장 가까운 면 → **가까운 30%(시차 상위 30%) 중앙값** |
+| 단안 핀홀 오차의 원인 | 실제 높이를 알면 가장 가까운 면 기준 오차 중앙값 **1.0%**. 오차는 거의 전부 **클래스 평균 높이 가정**(\|δH\|/H 중앙값 5.6%)에서 온다 |
+| 교차 거리 `Z*` (GT 박스) | 가장 가까운 면 기준 **≈ 33 m** (이론 31 m), 박스 중심 기준 **≈ 53–54 m** (이론 45 m) |
+| 교차 거리 `Z*` (검출 박스) | 가장 가까운 면 기준 **≈ 36–39 m**. 다만 우위는 1 %p 안팎으로 작고 구간에 따라 뒤집히며, 검출 누락이 12.7% |
+| 단안 깊이 (Depth Anything V2) | 상대 오차 중앙값 9.8–12.5%로 세 방식 중 가장 나쁨. 핀홀 스케일 보정은 개선 효과 없음 |
+
+**결론.** 가설의 *형태*는 맞습니다. 스테레오 상대 오차는 거리에 비례해 4% → 9%로 커지고, 핀홀(GT 박스)은 60 m대 초반까지 4–6.5%로 거의 평평합니다.
+하지만 KITTI의 0.54 m 기준선에서는 교차가 **30 m대 이후**에야 일어나고, 우위의 폭도 GT 박스에서 0.5~2 %p, 검출 박스에서는 그보다 작습니다.
+평균 절대 오차(MAE)로 보면 스테레오는 가림·반사로 인한 큰 이상치 때문에 더 일찍(7–19 m) 밀립니다.
+
+![error curves (z_near)](results/figures/error_curves_near.png)
+
+> [!IMPORTANT]
+> **GT 거리 정의가 결론을 바꿉니다.** KITTI 라벨의 `z`는 3D 박스 *중심*인데, 2D 박스 높이와 스테레오는 모두 *가장 가까운 면*을 봅니다.
+> 중심 기준으로 비교하면 핀홀은 약 −2 m(≈ 반 차 길이) 편향을 갖습니다. FCW에 필요한 값은 가장 가까운 면이므로 이를 주 기준(`z_near`, 3D 박스 꼭짓점 중 최소 깊이)으로 삼고, 중심 기준 결과도 함께 보고합니다.
+> 또한 KITTI *moderate* 필터(박스 ≥ 25 px)는 45 m 이후 큰 차만 남겨 핀홀 오차를 13%로 부풀리므로 기본 필터에서 뺐습니다 (민감도 표는 보고서 참고).
 
 ---
 
@@ -65,9 +88,9 @@ flowchart LR
 ```
 
 1. **시차 계산:** OpenCV `StereoBM`, `StereoSGBM`, 그리고 `ximgproc` WLS 필터를 비교합니다. 파라미터(`numDisparities`, `blockSize`, `P1`, `P2`)는 KITTI Stereo 2015의 시차 GT로 튜닝합니다.
-2. **객체 거리 추출:** 박스 안 시차는 배경이 섞이므로 **하위 백분위수(예: 하위 30%) 시차의 중앙값**을 객체 시차로 씁니다. 이 선택도 실험 변수로 둡니다.
+2. **객체 거리 추출:** 박스 안 시차는 배경(작은 시차)이 섞이므로 **깊이 기준 가까운 30%(= 시차 상위 30%)의 중앙값**을 후보로 두고, 전체 중앙값 · 중앙 50% 영역 중앙값 · 히스토그램 최빈값과 비교합니다 (S2).
 3. **단안 핀홀:** 박스 높이와 클래스별 평균 높이로 계산합니다. GT 박스를 쓰는 조건과 검출 박스를 쓰는 조건을 모두 봅니다.
-4. **단안 깊이 (선택):** 상대 깊이 모델에 핀홀 거리로 스케일을 맞춰 세 번째 기준선으로 씁니다.
+4. **단안 깊이:** Depth Anything V2 Metric-Outdoor-Small(Virtual KITTI 2로만 미세조정, 실제 KITTI 미사용)의 미터 깊이를 그대로 쓴 결과와, 같은 영상의 *다른* 객체들의 핀홀 거리로 스케일을 맞춘 결과(leave-one-out)를 함께 봅니다.
 
 ---
 
@@ -105,27 +128,56 @@ flowchart LR
 
 ## 🗓️ 마일스톤
 
-| 주차 | 내용 | 산출물 |
-|:---:|---|---|
-| 1 | KITTI 로더, `calib` 파싱, 정렬 확인 | 에피폴라 선 시각화 |
-| 2 | BM · SGBM · WLS 구현과 튜닝 | S1 결과표 |
-| 3 | 객체 단위 거리 추출 | S2 결과 |
-| 4 | 단안 핀홀 · 스테레오 비교 | D1 ~ D3 오차 곡선, `Z*` |
-| 5 | 단안 깊이 기준선 (선택), 정리 | D4, 최종 보고서 |
+| 주차 | 내용 | 산출물 | 상태 |
+|:---:|---|---|:---:|
+| 1 | KITTI 로더, `calib` 파싱, 정렬 확인 | [에피폴라 선 시각화](results/figures/epipolar_000008.jpg) (ORB 매칭 \|Δy\| 중앙값 0.00 px) | ✅ |
+| 2 | BM · SGBM · WLS 구현과 튜닝 | [S1 결과표](results/s1_results.csv), [시차 비교](results/figures/disparity_000001.png) | ✅ |
+| 3 | 객체 단위 거리 추출 | [S2 결과](results/s2_results.csv) | ✅ |
+| 4 | 단안 핀홀 · 스테레오 비교 | D1 ~ D3 오차 곡선, [`Z*`](results/crossover.csv) | ✅ |
+| 5 | 단안 깊이 기준선, 정리 | D4, [최종 보고서](results/REPORT.md) | ✅ |
 
-## 📁 디렉토리 구조 (계획)
+## 📁 디렉토리 구조
 
 ```
 Mono-Stereo-Distance-Estimation/
 ├── src/
 │   ├── calib.py          KITTI calib 파싱 (f, B)
-│   ├── disparity.py      BM · SGBM · WLS
-│   ├── object_depth.py   박스 → 거리 (세 방식)
-│   └── eval.py           D1-all · EPE · 거리 오차
-├── notebooks/            오차 곡선, 실패 사례
-├── results/
+│   ├── kitti.py          Stereo 2015 · Object 로더, label 파싱, 3D 박스 꼭짓점
+│   ├── disparity.py      BM · SGBM · WLS (왼쪽 패딩으로 좌측 띠까지 계산)
+│   ├── object_depth.py   박스 → 거리 (세 방식), 시차 집계 방식
+│   └── eval.py           D1-all · EPE · 거리 오차 · 구간 곡선 · Z*
+├── scripts/
+│   ├── prepare_data.sh   KITTI 다운로드 · 압축 해제
+│   ├── viz_epipolar.py   정렬 확인 (M1)
+│   ├── run_s1.py         S1 튜닝(짝수 장면) · 평가(홀수 장면)
+│   ├── viz_disparity.py  S1 정성 비교
+│   ├── run_gpu_models.py YOLO11 검출(D2) · Depth Anything V2(D4) 캐시
+│   ├── run_objects.py    S2 · D1 ~ D3 객체별 거리
+│   └── analyze.py        표 · 곡선 · Z* → results/REPORT.md
+├── tests/                pytest 17개 (합성 스테레오 쌍 포함)
+├── results/              결과표 · 그림 · REPORT.md
 └── README.md
 ```
+
+## ▶️ 재현
+
+```bash
+uv venv .venv --python 3.10
+uv pip install -r requirements.txt --index-url https://download.pytorch.org/whl/cu128 --extra-index-url https://pypi.org/simple --index-strategy unsafe-best-match
+uv pip install --reinstall opencv-contrib-python-headless==5.0.0.93   # ultralytics가 덮어쓴 cv2 복구 (ximgproc)
+.venv/bin/python -m pytest
+
+scripts/prepare_data.sh                      # ~27 GB, KITTI_ROOT 기본값 ~/data/kitti
+.venv/bin/python -m scripts.viz_epipolar
+.venv/bin/python -m scripts.run_s1           # 약 1분 (CPU 8 workers)
+.venv/bin/python -m scripts.viz_disparity
+.venv/bin/python -m scripts.run_gpu_models   # 약 15분 (RTX 5060 Ti)
+.venv/bin/python -m scripts.run_objects      # 약 3분 (CPU 10 workers)
+.venv/bin/python -m scripts.analyze
+```
+
+**데이터 분할.** 튜닝·통계에 쓰는 데이터와 평가 데이터를 섞지 않습니다. Stereo 2015는 짝수 장면으로 파라미터를 고르고 홀수 장면으로 평가합니다. Object는 짝수 id로 클래스 평균 높이를 추정하고 홀수 id로 평가합니다.
+**처리 시간 (프레임당 중앙값).** BM 25 ms · SGBM 29 ms · SGBM+WLS 69 ms (CPU), YOLO11m 24 ms · Depth Anything V2-S 134 ms (GPU, 전처리 포함).
 
 ## ⚠️ 리스크와 대응
 
