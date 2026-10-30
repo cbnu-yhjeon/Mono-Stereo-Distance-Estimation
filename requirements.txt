@@ -1,0 +1,13 @@
+# Python 3.10+. GPU(D2·D4)용 torch는 CUDA 버전에 맞는 인덱스에서 설치:
+#   uv pip install torch==2.11.0 torchvision --index-url https://download.pytorch.org/whl/cu128
+numpy==2.2.6
+pandas==2.3.3
+scipy==1.15.3
+matplotlib==3.10.9
+tqdm==4.70.1
+pytest==9.2.0
+opencv-contrib-python-headless==5.0.0.93  # ximgproc(WLS) 필요. ultralytics가 opencv-python을 끌어오면 이 패키지를 --reinstall
+torch==2.11.0
+torchvision==0.26.0
+ultralytics==8.4.193
+transformers==5.20.2
